@@ -5,45 +5,41 @@ import sys
 import pandas as pd
 import argparse
 
-
-
-
-
-
-imagedata = []
-overview = []
-count = 0
-headers = ['Type', 'Name', 'Size', 'Sort']
+# Get size total size of an object, thanks to: https://stackoverflow.com/questions/449560/how-do-i-determine-the-size-of-an-object-in-python
+def get_size(obj, seen=None):
+    """Recursively finds size of objects"""
+    size = sys.getsizeof(obj)
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    seen.add(obj_id)
+    if isinstance(obj, dict):
+        size += sum([get_size(v, seen) for v in obj.values()])
+        size += sum([get_size(k, seen) for k in obj.keys()])
+    elif hasattr(obj, '__dict__'):
+        size += get_size(obj.__dict__, seen)
+    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+        size += sum([get_size(i, seen) for i in obj])
+    return size
 
 def processMPR(args):
-    # Get size total size of an object, thanks to: https://stackoverflow.com/questions/449560/how-do-i-determine-the-size-of-an-object-in-python
-    def get_size(obj, seen=None):
-        """Recursively finds size of objects"""
-        size = sys.getsizeof(obj)
-        if seen is None:
-            seen = set()
-        obj_id = id(obj)
-        if obj_id in seen:
-            return 0
-        seen.add(obj_id)
-        if isinstance(obj, dict):
-            size += sum([get_size(v, seen) for v in obj.values()])
-            size += sum([get_size(k, seen) for k in obj.keys()])
-        elif hasattr(obj, '__dict__'):
-            size += get_size(obj.__dict__, seen)
-        elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
-            size += sum([get_size(i, seen) for i in obj])
-        return size
-
     # Open MPR file
     con = sqlite3.connect(args.input)
     cur = con.cursor()
+
+    # Init variables
+    count = 0
+    imagedata = []
+    overview = []
+    headers = ['Type', 'Name', 'Size', 'Sort']
 
     # Loop through Unit table and extract the contents
     print("Extracting data..")
     for row in cur.execute("SELECT  * FROM main.Unit ORDER BY length(Contents);"):
         count = count + 1
-        extracted = bson.BSON(row[6]).decode()
+        extracted = bson.BSON(row[6]).decode() # Extract BSON data from Contents
         try:
         	name = extracted['Name']
         except:
