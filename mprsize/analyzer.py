@@ -24,6 +24,28 @@ def get_size(obj, seen=None):
         size += sum([get_size(i, seen) for i in obj])
     return size
 
+def processResults(results, limit):
+    results = sorted(results,key=lambda sort: sort[3], reverse=True) # Sort by size
+    results = pd.DataFrame(results, columns=['Type', 'Name', 'Size', 'Sort']) # Create data frame
+    results = results.drop('Sort', axis=1) # Drop temporary sort column
+    results = results.head(limit + 1) # Only export N rows of data
+    return results
+
+# Find nested keys in a dict, thanks to: https://stackoverflow.com/questions/9807634/find-all-occurrences-of-a-key-in-nested-dictionaries-and-lists/19871956#19871956
+def findkeys(node, kv):
+    size = 0
+    if isinstance(node, list):
+        for i in node:
+            for x in findkeys(i, kv):
+               yield x
+    elif isinstance(node, dict):
+        if kv in node:
+            size = get_size(node)
+            yield node[kv], size
+        for j in node.values():
+            for x in findkeys(j, kv):
+                yield x
+
 def processMPR(args):
     # Open MPR file
     con = sqlite3.connect(args.input)
@@ -33,11 +55,12 @@ def processMPR(args):
     count = 0
     imagedata = []
     overview = []
-    headers = ['Type', 'Name', 'Size', 'Sort']
+    unknown = []
+    entities = []
 
     # Loop through Unit table and extract the contents
     print("Extracting data..")
-    for row in cur.execute("SELECT  * FROM main.Unit ORDER BY length(Contents);"):
+    for row in cur.execute("SELECT  * FROM main.Unit;"):
         count = count + 1
         extracted = bson.BSON(row[6]).decode() # Extract BSON data from Contents
         try:
@@ -48,7 +71,7 @@ def processMPR(args):
         totalsize_sort = get_size(extracted)
         itemtype =  extracted['$Type']
         overview.append([itemtype, name, totalsize, totalsize_sort])
-        # Check if object contains nested images and append them to the imagedata list
+        # Extracted nested objects
         if 'Images' in extracted.keys():
             for image in extracted['Images']:
                 try:
@@ -57,21 +80,36 @@ def processMPR(args):
                 except:
                 	pass
 
-    print("Source data is ", count, " rows.")
-    overview = sorted(overview,key=lambda sort: sort[3], reverse=True) # Sort by size
-    overview = pd.DataFrame(overview, columns=headers) # Create data frame
-    overview = overview.drop('Sort', axis=1) # Drop temporary sort column
-    overview = overview.head(args.limit + 1) # Only export N rows of data
+        elif 'Entities' in extracted.keys():
+            ent = list(findkeys(extracted['Entities'],"Name"))
+            for i in ent:
+                if isinstance(i, tuple):
+                    ename = list(i)[0]
+                    esize = list(i)[1] 
+                    while isinstance(ename, tuple):
+                        ename = ename[0]
+                    entities.append([itemtype, str(ename), size(esize), esize])
 
-    imagedata = sorted(imagedata,key=lambda sort: sort[3], reverse=True)
-    imagedata = pd.DataFrame(imagedata, columns=headers)
-    imagedata = imagedata.drop('Sort', axis=1)
-    imagedata = imagedata.drop('Type', axis=1)
-    imagedata = imagedata.head(args.limit + 1)
+        else:
+            for key in extracted.keys():
+                if isinstance(extracted[key], dict):
+                    for i in extracted[key].keys():
+                        unknown.append([itemtype, name + "/" + key + "/" + i, size(get_size(extracted[key][i])), get_size(extracted[key][i])])
+                else:
+                    unknown.append([itemtype, name + "/" + key, size(get_size(extracted[key])), get_size(extracted[key])])
+
+    print("Source data is ", count, " rows.")
+    # Process results
+    overview = processResults(overview, args.limit)
+    imagedata = processResults(imagedata, args.limit)
+    unknown = processResults(unknown, args.limit)
+    entities = processResults(entities, args.limit)
 
     with pd.ExcelWriter(args.output.strip()) as writer:
-    	overview.to_excel(writer, sheet_name="Overview")
-    	imagedata.to_excel(writer, sheet_name="Images")
+        overview.to_excel(writer, sheet_name="Overview")
+        imagedata.to_excel(writer, sheet_name="Images")
+        entities.to_excel(writer, sheet_name="Entities")
+        unknown.to_excel(writer, sheet_name="Uncategorized")
     print("Successfully exported to ", args.output)
 
 def cli():
