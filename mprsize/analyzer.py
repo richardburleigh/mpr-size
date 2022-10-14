@@ -4,6 +4,7 @@ from hurry.filesize import size  # Converts bytes to a Human-Readable format
 import sys
 import pandas as pd
 import argparse
+import csv
 
 # Get size total size of an object, thanks to:
 # https://stackoverflow.com/questions/449560/how-do-i-determine-the-size-of-an-object-in-python
@@ -136,12 +137,20 @@ def processMPR(args):
     unknown = processResults(unknown, args.limit)
     entities = processResults(entities, args.limit)
 
-    with pd.ExcelWriter(args.output.strip()) as writer:
-        overview.to_excel(writer, sheet_name="Overview")
-        imagedata.to_excel(writer, sheet_name="Images")
-        entities.to_excel(writer, sheet_name="Entities")
-        unknown.to_excel(writer, sheet_name="Uncategorized")
-    print("Successfully exported to ", args.output)
+    if args.csv:
+        outfile = args.output.removesuffix('.csv')
+        overview.to_csv(outfile + "_overview.csv", quoting=csv.QUOTE_ALL)
+        imagedata.to_csv(outfile + "_images.csv", quoting=csv.QUOTE_ALL)
+        unknown.to_csv(outfile + "_uncategorized.csv", quoting=csv.QUOTE_ALL)
+        entities.to_csv(outfile + "_entities.csv", quoting=csv.QUOTE_ALL)
+        print("Successfully exported reports.")
+    else:
+        with pd.ExcelWriter(args.output.strip()) as writer:
+            overview.to_excel(writer, sheet_name="Overview")
+            imagedata.to_excel(writer, sheet_name="Images")
+            entities.to_excel(writer, sheet_name="Entities")
+            unknown.to_excel(writer, sheet_name="Uncategorized")
+            print("Successfully exported to ", args.output)
 
 
 def cli():
@@ -164,6 +173,11 @@ def cli():
         help="Limit final report to N rows per sheet",
         type=int,
         default=100)
+    parser.add_argument(
+        "--csv",
+        help="Export to CSV file",
+        action='store_true',
+        default=False)
     args = parser.parse_args()
     processMPR(args)
 
