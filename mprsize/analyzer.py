@@ -85,7 +85,8 @@ def processMPR(args):
         totalsize = size(get_size(extracted))
         totalsize_sort = get_size(extracted)
         itemtype = extracted['$Type']
-        overview.append([itemtype, name, totalsize, totalsize_sort])
+        if itemtype == "DomainModels$DomainModel":
+            isDomainModel = True
         # Extracted nested objects
         if 'Images' in extracted.keys():
             for image in extracted['Images']:
@@ -97,7 +98,6 @@ def processMPR(args):
                     pass
 
         elif 'Entities' in extracted.keys():
-            isDomainModel = True
             ent = list(findkeys(extracted['Entities'], "Name"))
             for i in ent:
                 if isinstance(i, tuple):
