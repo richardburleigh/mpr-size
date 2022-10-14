@@ -1,11 +1,12 @@
 import sqlite3
 import bson
-from hurry.filesize import size # Converts bytes to a Human-Readable format
+from hurry.filesize import size  # Converts bytes to a Human-Readable format
 import sys
 import pandas as pd
 import argparse
 
-# Get size total size of an object, thanks to: https://stackoverflow.com/questions/449560/how-do-i-determine-the-size-of-an-object-in-python
+# Get size total size of an object, thanks to:
+# https://stackoverflow.com/questions/449560/how-do-i-determine-the-size-of-an-object-in-python
 def get_size(obj, seen=None):
     """Recursively finds size of objects"""
     size = sys.getsizeof(obj)
@@ -24,20 +25,31 @@ def get_size(obj, seen=None):
         size += sum([get_size(i, seen) for i in obj])
     return size
 
+
 def processResults(results, limit):
-    results = sorted(results,key=lambda sort: sort[3], reverse=True) # Sort by size
-    results = pd.DataFrame(results, columns=['Type', 'Name', 'Size', 'Sort']) # Create data frame
-    results = results.drop('Sort', axis=1) # Drop temporary sort column
-    results = results.head(limit + 1) # Only export N rows of data
+    results = sorted(
+        results,
+        key=lambda sort: sort[3],
+        reverse=True)  # Sort by size
+    results = pd.DataFrame(
+        results,
+        columns=[
+            'Type',
+            'Name',
+            'Size',
+            'Sort'])  # Create data frame
+    results = results.drop('Sort', axis=1)  # Drop temporary sort column
+    results = results.head(limit + 1)  # Only export N rows of data
     return results
 
-# Find nested keys in a dict, thanks to: https://stackoverflow.com/questions/9807634/find-all-occurrences-of-a-key-in-nested-dictionaries-and-lists/19871956#19871956
+# Find nested keys in a dict, thanks to:
+# https://stackoverflow.com/questions/9807634/find-all-occurrences-of-a-key-in-nested-dictionaries-and-lists/19871956#19871956
 def findkeys(node, kv):
     size = 0
     if isinstance(node, list):
         for i in node:
             for x in findkeys(i, kv):
-               yield x
+                yield x
     elif isinstance(node, dict):
         if kv in node:
             size = get_size(node)
@@ -45,6 +57,7 @@ def findkeys(node, kv):
         for j in node.values():
             for x in findkeys(j, kv):
                 yield x
+
 
 def processMPR(args):
     # Open MPR file
@@ -57,35 +70,39 @@ def processMPR(args):
     overview = []
     unknown = []
     entities = []
+    domainModelSize = 0
 
     # Loop through Unit table and extract the contents
     print("Extracting data..")
     for row in cur.execute("SELECT  * FROM main.Unit;"):
         count = count + 1
+        isDomainModel = False
         extracted = bson.BSON(row[6]).decode() # Extract BSON data from Contents
         try:
-        	name = extracted['Name']
-        except:
-        	name = "N/A"
+            name = extracted['Name']
+        except BaseException:
+            name = "N/A"
         totalsize = size(get_size(extracted))
         totalsize_sort = get_size(extracted)
-        itemtype =  extracted['$Type']
+        itemtype = extracted['$Type']
         overview.append([itemtype, name, totalsize, totalsize_sort])
         # Extracted nested objects
         if 'Images' in extracted.keys():
             for image in extracted['Images']:
                 try:
-                	imagesize = get_size(image['Image'])
-                	imagedata.append([itemtype, name + "/" + image['Name'].strip(), size(imagesize), imagesize])
-                except:
-                	pass
+                    imagesize = get_size(image['Image'])
+                    imagedata.append(
+                        [itemtype, name + "/" + image['Name'].strip(), size(imagesize), imagesize])
+                except BaseException:
+                    pass
 
         elif 'Entities' in extracted.keys():
-            ent = list(findkeys(extracted['Entities'],"Name"))
+            isDomainModel = True
+            ent = list(findkeys(extracted['Entities'], "Name"))
             for i in ent:
                 if isinstance(i, tuple):
                     ename = list(i)[0]
-                    esize = list(i)[1] 
+                    esize = list(i)[1]
                     while isinstance(ename, tuple):
                         ename = ename[0]
                     entities.append([itemtype, str(ename), size(esize), esize])
@@ -94,11 +111,25 @@ def processMPR(args):
             for key in extracted.keys():
                 if isinstance(extracted[key], dict):
                     for i in extracted[key].keys():
-                        unknown.append([itemtype, name + "/" + key + "/" + i, size(get_size(extracted[key][i])), get_size(extracted[key][i])])
+                        unknown.append([itemtype,
+                                        name + "/" + key + "/" + i,
+                                        size(get_size(extracted[key][i])),
+                                        get_size(extracted[key][i])])
                 else:
-                    unknown.append([itemtype, name + "/" + key, size(get_size(extracted[key])), get_size(extracted[key])])
+                    unknown.append([itemtype,
+                                    name + "/" + key,
+                                    size(get_size(extracted[key])),
+                                    get_size(extracted[key])])
+        if isDomainModel:
+            domainModelSize = domainModelSize + totalsize_sort
+        else:
+            overview.append([itemtype, name, totalsize, totalsize_sort])
 
-    print("Source data is ", count, " rows.")
+    if domainModelSize > 0:
+        overview.append(["DomainModels$DomainModel", "DomainModel",
+                        size(domainModelSize), domainModelSize])
+
+
     # Process results
     overview = processResults(overview, args.limit)
     imagedata = processResults(imagedata, args.limit)
@@ -112,13 +143,30 @@ def processMPR(args):
         unknown.to_excel(writer, sheet_name="Uncategorized")
     print("Successfully exported to ", args.output)
 
+
 def cli():
     parser = argparse.ArgumentParser("mpranalyzer")
-    parser.add_argument("-i", "--input", help="MPR file to analyze", type=str, required=True)
-    parser.add_argument("-o", "--output", help="Excel file to write to", type=str, required=True)
-    parser.add_argument("-l", "--limit", help="Limit final report to N rows per sheet", type=int, default=100)
+    parser.add_argument(
+        "-i",
+        "--input",
+        help="MPR file to analyze",
+        type=str,
+        required=True)
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Excel file to write to",
+        type=str,
+        required=True)
+    parser.add_argument(
+        "-l",
+        "--limit",
+        help="Limit final report to N rows per sheet",
+        type=int,
+        default=100)
     args = parser.parse_args()
     processMPR(args)
+
 
 if __name__ == '__main__':
     cli()
