@@ -82,8 +82,8 @@ def processMPR(args):
             name = extracted['Name']
         except BaseException:
             name = "N/A"
-        totalsize = size(get_size(extracted))
-        totalsize_sort = get_size(extracted)
+        totalsize = size(get_size(row))
+        totalsize_sort = get_size(row)
         itemtype = extracted['$Type']
         if itemtype == "DomainModels$DomainModel":
             isDomainModel = True
