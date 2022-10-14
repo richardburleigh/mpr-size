@@ -13,6 +13,7 @@ Command-line arguments:
   -i INPUT, --input INPUT,  MPR file to analyze
   -o OUTPUT, --output OUTPUT,  Excel file to write to
   -l LIMIT, --limit LIMIT,  Limit final report to N rows per sheet (Optional)
+  --csv,  Export to CSV files (Optional)
 ```
 
 ## Example output
