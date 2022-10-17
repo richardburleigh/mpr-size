@@ -2,3 +2,4 @@ hurry.filesize
 pandas
 argparse
 pymongo
+openpyxl
