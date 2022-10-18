@@ -1,7 +1,12 @@
 # MPR Size
 A simple Python tool to extract object sizes from Mendix MPR files and export them into Excel reports.
 
-## Setup
+## Binary Downloads
+Binaries are available on the [Releases](https://github.com/richardburleigh/mpr-size/releases/) page
+
+## Python Setup
+As an alternative to pre-compiled binaries, you can install MPR Size from the master branch via pip:
+
     pip install git+https://github.com/richardburleigh/mpr-size.git
 
 ## Command-line usage
@@ -33,3 +38,6 @@ Command-line arguments:
 |          |        |          |               |
 |----------|:------:|:--------:|:-------------:|
 | <ins>**Overview**</ins> | _Images_ | _Entities_ | _Uncategorized_ |
+
+
+_Please note that this tool is not developed, supported, or endorsed by Siemens / Mendix and no claims are made to the validity of results._
